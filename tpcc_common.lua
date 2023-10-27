@@ -43,6 +43,14 @@ CUST_PER_DIST=3000
 
 -- Command line options
 sysbench.cmdline.options = {
+    load_shard  = 
+    {"load shard?", 1},
+    load_router  = 
+    {"load router?", 0},
+    scalefrom = {"", 1},
+    scaleto = {"", 1},
+    skipddl = 
+    {"do not create tables & indx", 1},
    scale =
       {"Scale factor (warehouses)", 100},
    tables =
@@ -90,27 +98,88 @@ function db_connection_init()
    return drv,con
 end
 
+
+function load_local_router_tables(tbl_num)
+
+   local qry = string.format([[
+	create table IF NOT EXISTS item%d (
+	i_id int not null, 
+	i_im_id int, 
+	i_name varchar(24), 
+	i_price decimal(5,2), 
+	i_data varchar(50),
+	PRIMARY KEY(i_id) 
+	)]], tbl_num)
+      
+   local drv,con = db_connection_init()
+   con:query(qry)
+
+
+   con:bulk_insert_init("INSERT INTO item" .. tbl_num .." (i_id, i_im_id, i_name, i_price, i_data) values")
+   for j = 1 , MAXITEMS do
+      local i_im_id = sysbench.rand.uniform(1,10000)
+      local i_price = sysbench.rand.uniform_double()*100+1
+      -- i_name is not generated as prescribed by standard, but we want to provide a better compression
+      local i_name  = string.format("item-%d-%f-%s", i_im_id, i_price, sysbench.rand.string("@@@@@"))
+      local i_data  = string.format("data-%s-%s", i_name, sysbench.rand.string("@@@@@"))
+
+      query = string.format([[(%d,%d,'%s',%f,'%s')]],
+	j, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
+        con:bulk_insert_next(query)
+
+   end
+   con:bulk_insert_done()
+
+   con:disconnect()
+
+
+   --for j = 1 , MAXITEMS do
+      -- local drv,con = db_connection_init()
+      -- local i_im_id = sysbench.rand.uniform(1,10000)
+      -- local i_price = sysbench.rand.uniform_double()*100+1
+       -- i_name is not generated as prescribed by standard, but we want to provide a better compression
+      -- local i_name  = string.format("item-%d-%f-%s", i_im_id, i_price, sysbench.rand.string("@@@@@"))
+       --local i_data  = string.format("data-%s-%s", i_name, sysbench.rand.string("@@@@@"))
+       
+       --local qry = string.format([[INSERT INTO item%d (i_id, i_im_id, i_name, i_price, i_data) values(%d,%d,'%s',%f,'%s')]], tbl_num, j, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
+       --print("processign query !!!!", qry)
+       
+      -- con:query(qry)
+      -- con:disconnect()
+
+    --end
+end
+
 -- Create the tables and Prepare the dataset. This command supports parallel execution, i.e. will
 -- benefit from executing with --threads > 1 as long as --scale > 1
 function cmd_prepare()
 
-   local drv,con = db_connection_init()
 
-   -- create tables in parallel table per thread
-   for i = sysbench.tid % sysbench.opt.threads + 1, sysbench.opt.tables,
-   sysbench.opt.threads do
-     create_tables(drv, con, i)
+   print("SKIP DDL IS", sysbench.opt.skipddl)
+   print("LOAD ROUTER IS", sysbench.opt.load_router)
+   print("LOAD SHARD IS", sysbench.opt.load_shard)
+
+   if sysbench.opt.skipddl == 0 then 
+       -- create tables in parallel table per thread
+       for i = sysbench.tid % sysbench.opt.threads + 1, sysbench.opt.tables,
+       sysbench.opt.threads do
+         create_tables(i)
+       end
    end
-
-   -- make sure all tables are created before we load data
-
-   print("Waiting on tables 30 sec\n")
-   sleep(30)
-
-   for i = sysbench.tid % sysbench.opt.threads + 1, sysbench.opt.scale,
-   sysbench.opt.threads do
-     load_tables(drv, con, i)
+       -- make sure all tables are created before we load data
+       --
+   load_local_router_tables(1)
+   if sysbench.opt.load_shard == 1 then
+       print("Waiting on tables 1 sec\n")
+       sleep(1)
+       print("load tbls")
+       for i = sysbench.opt.scalefrom, sysbench.opt.scaleto, 1 do
+	       if i % sysbench.opt.threads == sysbench.tid then
+		       load_tables(i)
+	       end
+       end
    end
+   
 
 end
 
@@ -127,14 +196,8 @@ function cmd_check()
 
 end
 
--- Implement parallel prepare and prewarm commands
-sysbench.cmdline.commands = {
-   prepare = {cmd_prepare, sysbench.cmdline.PARALLEL_COMMAND},
-   check = {cmd_check, sysbench.cmdline.PARALLEL_COMMAND}
-}
-
-
-function create_tables(drv, con, table_num)
+function create_tables(table_num)
+   local drv,con = db_connection_init()
    local id_index_def, id_def
    local engine_def = ""
    local extra_table_options = ""
@@ -332,20 +395,6 @@ function create_tables(drv, con, table_num)
 
    con:query(query)
 
-   con:bulk_insert_init("INSERT INTO item" .. i .." (i_id, i_im_id, i_name, i_price, i_data) values")
-   for j = 1 , MAXITEMS do
-      local i_im_id = sysbench.rand.uniform(1,10000)
-      local i_price = sysbench.rand.uniform_double()*100+1
-      -- i_name is not generated as prescribed by standard, but we want to provide a better compression
-      local i_name  = string.format("item-%d-%f-%s", i_im_id, i_price, sysbench.rand.string("@@@@@"))
-      local i_data  = string.format("data-%s-%s", i_name, sysbench.rand.string("@@@@@"))
- 
-      query = string.format([[(%d,%d,'%s',%f,'%s')]],
-	j, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
-        con:bulk_insert_next(query)
-		 
-   end
-   con:bulk_insert_done()
 
     print(string.format("Adding indexes %d ... \n", i))
     con:query("CREATE INDEX idx_customer"..i.." ON customer"..i.." (c_w_id,c_d_id,c_last,c_first)")
@@ -403,8 +452,10 @@ end
 
 
 
-function load_tables(drv, con, warehouse_num)
-   local id_index_def, id_def
+
+function load_tables(warehouse_num)
+    local drv,con = db_connection_init()
+    local id_index_def, id_def
    local engine_def = ""
    local extra_table_options = ""
    local query
@@ -601,31 +652,42 @@ function load_tables(drv, con, warehouse_num)
 end
 
 
+
 function thread_done()
    con:disconnect()
 end
 
-function cleanup()
-
+function cleanup_target(j) 
    local drv,con = db_connection_init()
 
    for i = 1, sysbench.opt.tables do
-      print(string.format("Dropping tables '%d'...", i))
-      con:query("DROP TABLE IF EXISTS history" .. i )
-      con:query("DROP TABLE IF EXISTS new_orders" .. i )
-      con:query("DROP TABLE IF EXISTS order_line" .. i )
-      con:query("DROP TABLE IF EXISTS orders" .. i )
-      con:query("DROP TABLE IF EXISTS customer" .. i )
-      con:query("DROP TABLE IF EXISTS district" .. i )
-      con:query("DROP TABLE IF EXISTS stock" .. i )
-      con:query("DROP TABLE IF EXISTS item" .. i )
-      con:query("DROP TABLE IF EXISTS warehouse" .. i )
+         
+
+          con:query(string.format("DELETE FROM item%d", i))
+          print(string.format("Dropping tables '%d'... for warehouse %d", i, j))
+          con:query(string.format("DELETE FROM history%d WHERE h_c_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM new_orders%d WHERE no_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM order_line%d WHERE ol_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM orders%d WHERE o_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM customer%d WHERE c_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM district%d WHERE d_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM stock%d WHERE s_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM warehouse%d WHERE w_id = %d", i, j))
    end
+end
+
+function cleanup()
+
+
+       for i = sysbench.tid % sysbench.opt.threads + 1, sysbench.opt.scale,
+       sysbench.opt.threads do
+         cleanup_target(i)
+       end
+
 end
 
 function Lastname(num)
   local n = {"BAR", "OUGHT", "ABLE", "PRI", "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING"}
-
   name =n[math.floor(num / 100) + 1] .. n[ math.floor(num / 10)%10 + 1] .. n[num%10 + 1]
 
   return name
@@ -664,5 +726,13 @@ function NURand (A, x, y)
 
 	return ((( bit.bor(i, j) ) + C) % (y-x+1)) + x;
 end
+
+-- Implement parallel prepare and prewarm commands
+sysbench.cmdline.commands = {
+   prepare = {cmd_prepare, sysbench.cmdline.PARALLEL_COMMAND},
+   check = {cmd_check, sysbench.cmdline.PARALLEL_COMMAND},
+   cleanup = {cleanup, sysbench.cmdline.PARALLEL_COMMAND}
+}
+
 
 -- vim:ts=4 ss=4 sw=4 expandtab

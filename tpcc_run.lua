@@ -30,7 +30,7 @@ function other_ware (home_ware)
 
     if sysbench.opt.scale == 1 then return home_ware end
     repeat
-       tmp = sysbench.rand.uniform(1, sysbench.opt.scale)
+       tmp = sysbench.rand.uniform(sysbench.opt.scalefrom, sysbench.opt.scaleto)
     until tmp == home_ware
     return tmp
 end
@@ -40,7 +40,7 @@ function new_order()
 -- prep work
 
     local table_num = sysbench.rand.uniform(1, sysbench.opt.tables)
-    local w_id = sysbench.rand.uniform(1, sysbench.opt.scale)
+    local w_id = sysbench.rand.uniform(sysbench.opt.scalefrom, sysbench.opt.scaleto)
     local d_id = sysbench.rand.uniform(1, DIST_PER_WARE)
     local c_id = NURand(1023, 1, CUST_PER_DIST)
 
@@ -157,7 +157,7 @@ function new_order()
 	local i_data
 
 	if rs.nrows == 0 then
---          print("ROLLBACK")
+          print("ROLLBACK")
           ffi.C.sb_counter_inc(sysbench.tid, ffi.C.SB_CNT_ERROR)
           con:query("ROLLBACK")
 	  return	
@@ -232,13 +232,15 @@ function payment()
 -- prep work
 
     local table_num = sysbench.rand.uniform(1, sysbench.opt.tables)
-    local w_id = sysbench.rand.uniform(1, sysbench.opt.scale)
+    local w_id = sysbench.rand.uniform(sysbench.opt.scalefrom, sysbench.opt.scaleto)
     local d_id = sysbench.rand.uniform(1, DIST_PER_WARE)
     local c_id = NURand(1023, 1, CUST_PER_DIST)
     local h_amount = sysbench.rand.uniform(1,5000)
     local byname
     local c_w_id
     local c_d_id
+    
+    --local c_last = Lastname(c_id - 1)
     local c_last = Lastname(NURand(255,0,999))
 
     if sysbench.rand.uniform(1, 100) <= 60 then
@@ -422,11 +424,20 @@ end
 function orderstatus()
 
     local table_num = sysbench.rand.uniform(1, sysbench.opt.tables)
-    local w_id = sysbench.rand.uniform(1, sysbench.opt.scale)
+    local w_id = sysbench.rand.uniform(sysbench.opt.scalefrom, sysbench.opt.scaleto)
     local d_id = sysbench.rand.uniform(1, DIST_PER_WARE)
     local c_id = NURand(1023, 1, CUST_PER_DIST)
     local byname
-    local c_last = Lastname(NURand(255,0,999))
+    local c_last
+
+    -- hack hack XXX TODO FIXME
+    if c_id <= 1000 then
+        c_last = Lastname(c_id - 1)
+    else
+        c_last = Lastname(NURand(255, 0, 999))
+    end
+
+
 
     if sysbench.rand.uniform(1, 100) <= 60 then
         byname = 1 -- select by last name 
@@ -565,7 +576,7 @@ end
 
 function delivery()
     local table_num = sysbench.rand.uniform(1, sysbench.opt.tables)
-    local w_id = sysbench.rand.uniform(1, sysbench.opt.scale)
+    local w_id = sysbench.rand.uniform(sysbench.opt.scalefrom, sysbench.opt.scaleto)
     local o_carrier_id = sysbench.rand.uniform(1, 10)
 
     if (sysbench.opt.splittable == "yes")
@@ -677,7 +688,7 @@ end
 
 function stocklevel()
     local table_num = sysbench.rand.uniform(1, sysbench.opt.tables)
-    local w_id = sysbench.rand.uniform(1, sysbench.opt.scale)
+    local w_id = sysbench.rand.uniform(sysbench.opt.scalefrom, sysbench.opt.scaleto)
     local d_id = sysbench.rand.uniform(1, DIST_PER_WARE)
     local level = sysbench.rand.uniform(10, 20)
 
@@ -776,7 +787,7 @@ end
 function purge()
     for i = 1, 10 do
     local table_num = sysbench.rand.uniform(1, sysbench.opt.tables)
-    local w_id = sysbench.rand.uniform(1, sysbench.opt.scale)
+    local w_id = sysbench.rand.uniform(sysbench.opt.scalefrom, sysbench.opt.scaleto)
     local d_id = sysbench.rand.uniform(1, DIST_PER_WARE)
 
     if (sysbench.opt.splittable == "yes")
