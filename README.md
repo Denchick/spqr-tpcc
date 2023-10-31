@@ -1,28 +1,11 @@
-# sysbench-tpcc
+# spqr-tpcc
 
-TPCC-like workload for sysbench 1.0.x.
-**Make sure you are using sysbench 1.0.14 or better!**
+TPCC-like workload for sysbench 1.0.x. Make sure you are using sysbench 1.0.14 or better!. I am using this repository to test [SPQR](github.com/pg-sharding/spqr).
 
-# prepare data and tables
-
-`
-./tpcc.lua --mysql-socket=/tmp/mysql.sock --mysql-user=root --mysql-db=sbt --time=300 --threads=64 --report-interval=1 --tables=10 --scale=100 --db-driver=mysql prepare
-`
-
-## prepare for RocksDB
+# Example
 
 `
-./tpcc.lua --mysql-socket=/tmp/mysql.sock --mysql-user=root --mysql-db=sbr --time=3000 --threads=64 --report-interval=1 --tables=10 --scale=100 --use_fk=0 --mysql_storage_engine=rocksdb --mysql_table_options='COLLATE latin1_bin' --trx_level=RC --db-driver=mysql prepare
+sysbench ./tpcc.lua --pgsql-user=denchick --pgsql-password=P@ssw0rd --pgsql-db=denchick --time=3600 --threads=1 --report-interval=1 --tables=1 --scalefrom=1 --scaleto=2 --use_fk=0 --trx_level=RC --db-driver=pgsql --pgsql-port=6432 --pgsql-host=sas-eobe4680fa6vxg4a.db.yandex.net --skipddl=0 prepare
 `
 
-# Run benchmark
-
-`
-./tpcc.lua --mysql-socket=/tmp/mysql.sock --mysql-user=root --mysql-db=sbt --time=300 --threads=64 --report-interval=1 --tables=10 --scale=100 --db-driver=mysql run
-`
-
-# Cleanup 
-
-`
-./tpcc.lua --mysql-socket=/tmp/mysql.sock --mysql-user=root --mysql-db=sbt --time=300 --threads=64 --report-interval=1 --tables=10 --scale=100 --db-driver=mysql cleanup
-`
+There is also run and cleanup commands, for more info see code and original [sysbench repository](github.com/akopytov/sysbench)
