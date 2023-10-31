@@ -37,7 +37,7 @@ if sysbench.cmdline.command == nil then
    error("Command is required. Supported commands: prepare, run, cleanup, help")
 end
 
-MAXITEMS=100000
+MAXITEMS=5000
 DIST_PER_WARE=10
 CUST_PER_DIST=3000
 
@@ -455,7 +455,7 @@ function load_tables(warehouse_num)
 
    end
    con:bulk_insert_done()
-   print("district %d for wid %d OK", table_num, warehouse_num)
+   print(string.format("district %d for wid %d OK", table_num, warehouse_num))
 -- CUSTOMER TABLE
 
    con:bulk_insert_init("INSERT INTO customer" .. table_num .. [[
@@ -492,12 +492,13 @@ function load_tables(warehouse_num)
    end
 
    con:bulk_insert_done()
-   print("customer %d for wid %d OK", table_num, warehouse_num)
+   print(string.format("customer %d for wid %d OK", table_num, warehouse_num))
 
 -- ITEM TABLE
 
     con:bulk_insert_init("INSERT INTO item" .. table_num .." (i_id, i_w_id, i_im_id, i_name, i_price, i_data) values")
     for j = 1 , MAXITEMS do
+       local i_id = sysbench.rand.uniform(1,MAXITEMS*warehouse_num*100000)
        local i_w_id = warehouse_num
        local i_im_id = sysbench.rand.uniform(1,10000)
        local i_price = sysbench.rand.uniform_double()*100+1
@@ -506,12 +507,13 @@ function load_tables(warehouse_num)
        local i_data  = string.format("data-%s-%s", i_name, sysbench.rand.string("@@@@@"))
  
        query = string.format([[(%d,%d,%d,'%s',%f,'%s')]],
-     j, i_w_id, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
+     i_id, i_w_id, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
+       print(query, j)
          con:bulk_insert_next(query)
  
     end
     con:bulk_insert_done()
-    print("item %d for wid %d OK", table_num, warehouse_num)
+    print(string.format("item %d for wid %d OK", table_num, warehouse_num))
 
 -- HISTORY TABLE
 
@@ -618,7 +620,7 @@ function load_tables(warehouse_num)
 
    con:bulk_insert_done()
 
-   print("stock %d for wid %d OK", table_num, warehouse_num)
+   print(string.format("stock %d for wid %d OK", table_num, warehouse_num))
   end
 
    if drv:name() == "mysql"
