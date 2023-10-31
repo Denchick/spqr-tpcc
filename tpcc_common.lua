@@ -43,10 +43,6 @@ CUST_PER_DIST=3000
 
 -- Command line options
 sysbench.cmdline.options = {
-    load_shard  = 
-    {"load shard?", 1},
-    load_router  = 
-    {"load router?", 0},
     scalefrom = {"", 1},
     scaleto = {"", 1},
     skipddl = 
@@ -98,87 +94,29 @@ function db_connection_init()
    return drv,con
 end
 
-
-function load_local_router_tables(tbl_num)
-
-   local qry = string.format([[
-	create table IF NOT EXISTS item%d (
-	i_id int not null, 
-	i_im_id int, 
-	i_name varchar(24), 
-	i_price decimal(5,2), 
-	i_data varchar(50),
-	PRIMARY KEY(i_id) 
-	)]], tbl_num)
-      
-   local drv,con = db_connection_init()
-   con:query(qry)
-
-
-   con:bulk_insert_init("INSERT INTO item" .. tbl_num .." (i_id, i_im_id, i_name, i_price, i_data) values")
-   for j = 1 , MAXITEMS do
-      local i_im_id = sysbench.rand.uniform(1,10000)
-      local i_price = sysbench.rand.uniform_double()*100+1
-      -- i_name is not generated as prescribed by standard, but we want to provide a better compression
-      local i_name  = string.format("item-%d-%f-%s", i_im_id, i_price, sysbench.rand.string("@@@@@"))
-      local i_data  = string.format("data-%s-%s", i_name, sysbench.rand.string("@@@@@"))
-
-      query = string.format([[(%d,%d,'%s',%f,'%s')]],
-	j, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
-        con:bulk_insert_next(query)
-
-   end
-   con:bulk_insert_done()
-
-   con:disconnect()
-
-
-   --for j = 1 , MAXITEMS do
-      -- local drv,con = db_connection_init()
-      -- local i_im_id = sysbench.rand.uniform(1,10000)
-      -- local i_price = sysbench.rand.uniform_double()*100+1
-       -- i_name is not generated as prescribed by standard, but we want to provide a better compression
-      -- local i_name  = string.format("item-%d-%f-%s", i_im_id, i_price, sysbench.rand.string("@@@@@"))
-       --local i_data  = string.format("data-%s-%s", i_name, sysbench.rand.string("@@@@@"))
-       
-       --local qry = string.format([[INSERT INTO item%d (i_id, i_im_id, i_name, i_price, i_data) values(%d,%d,'%s',%f,'%s')]], tbl_num, j, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
-       --print("processign query !!!!", qry)
-       
-      -- con:query(qry)
-      -- con:disconnect()
-
-    --end
-end
-
 -- Create the tables and Prepare the dataset. This command supports parallel execution, i.e. will
 -- benefit from executing with --threads > 1 as long as --scale > 1
 function cmd_prepare()
-
-
-   print("SKIP DDL IS", sysbench.opt.skipddl)
-   print("LOAD ROUTER IS", sysbench.opt.load_router)
-   print("LOAD SHARD IS", sysbench.opt.load_shard)
+   print("START PREPARE")
 
    if sysbench.opt.skipddl == 0 then 
-       -- create tables in parallel table per thread
+        print("CREATE TABLES")
+       -- CREATE TABLEs in parallel table per thread
        for i = sysbench.tid % sysbench.opt.threads + 1, sysbench.opt.tables,
        sysbench.opt.threads do
          create_tables(i)
        end
    end
-       -- make sure all tables are created before we load data
-       --
-   load_local_router_tables(1)
-   if sysbench.opt.load_shard == 1 then
-       print("Waiting on tables 1 sec\n")
-       sleep(1)
-       print("load tbls")
-       for i = sysbench.opt.scalefrom, sysbench.opt.scaleto, 1 do
-	       if i % sysbench.opt.threads == sysbench.tid then
-		       load_tables(i)
-	       end
-       end
-   end
+    -- make sure all tables are created before we load data
+    --
+    print("Waiting on tables 1 sec\n")
+    sleep(1)
+    print("LOAD TABLES")
+    for i = sysbench.opt.scalefrom, sysbench.opt.scaleto, 1 do
+        if i % sysbench.opt.threads == sysbench.tid then
+            load_tables(i)
+        end
+    end
    
 
 end
@@ -234,7 +172,7 @@ function create_tables(table_num)
    con:query(query)
 
    query = string.format([[
-	create table IF NOT EXISTS district%d (
+	CREATE TABLE IF NOT EXISTS district%d (
 	d_id ]] .. tinyint_type .. [[ not null, 
 	d_w_id smallint not null, 
 	d_name varchar(10), 
@@ -255,7 +193,7 @@ function create_tables(table_num)
 -- CUSTOMER TABLE
 
    query = string.format([[
-	create table IF NOT EXISTS customer%d (
+	CREATE TABLE IF NOT EXISTS customer%d (
 	c_id int not null, 
 	c_d_id ]] .. tinyint_type .. [[ not null,
 	c_w_id smallint not null, 
@@ -283,6 +221,22 @@ function create_tables(table_num)
 
    con:query(query)
 
+-- ITEM TABLE
+
+    query = string.format([[
+    CREATE TABLE IF NOT EXISTS item%d (
+     i_id int not null, 
+     i_w_id smallint not null,
+     i_im_id int, 
+     i_name varchar(24), 
+     i_price decimal(5,2), 
+     i_data varchar(50),
+     PRIMARY KEY(i_id) 
+     )]], table_num)
+       
+    con:query(query)
+
+
 -- HISTORY TABLE
    local hist_auto_inc=""
    local hist_pk=""
@@ -291,7 +245,7 @@ function create_tables(table_num)
       hist_pk=",PRIMARY KEY(id)"
    end
    query = string.format([[
-	create table IF NOT EXISTS history%d (
+	CREATE TABLE IF NOT EXISTS history%d (
         %s
 	h_c_id int, 
 	h_c_d_id ]] .. tinyint_type .. [[, 
@@ -307,7 +261,7 @@ function create_tables(table_num)
    con:query(query)
 
    query = string.format([[
-	create table IF NOT EXISTS orders%d (
+	CREATE TABLE IF NOT EXISTS orders%d (
 	o_id int not null, 
 	o_d_id ]] .. tinyint_type .. [[ not null, 
 	o_w_id smallint not null,
@@ -325,7 +279,7 @@ function create_tables(table_num)
 -- NEW_ORDER table
 
    query = string.format([[
-	create table IF NOT EXISTS new_orders%d (
+	CREATE TABLE IF NOT EXISTS new_orders%d (
 	no_o_id int not null,
 	no_d_id ]] .. tinyint_type .. [[ not null,
 	no_w_id smallint not null,
@@ -336,7 +290,7 @@ function create_tables(table_num)
    con:query(query)
 
    query = string.format([[
-	create table IF NOT EXISTS order_line%d ( 
+	CREATE TABLE IF NOT EXISTS order_line%d ( 
 	ol_o_id int not null, 
 	ol_d_id ]] .. tinyint_type .. [[ not null,
 	ol_w_id smallint not null,
@@ -356,7 +310,7 @@ function create_tables(table_num)
 -- STOCK table
 
    query = string.format([[
-	create table IF NOT EXISTS stock%d (
+	CREATE TABLE IF NOT EXISTS stock%d (
 	s_i_id int not null, 
 	s_w_id smallint not null, 
 	s_quantity smallint, 
@@ -383,8 +337,9 @@ function create_tables(table_num)
    local i = table_num
 
    query = string.format([[
-	create table IF NOT EXISTS item%d (
+	CREATE TABLE IF NOT EXISTS item%d (
 	i_id int not null, 
+	i_w_id smallint not null, 
 	i_im_id int, 
 	i_name varchar(24), 
 	i_price decimal(5,2), 
@@ -415,6 +370,7 @@ function create_tables(table_num)
         con:query("ALTER TABLE order_line"..i.." ADD CONSTRAINT fkey_order_line_2_"..table_num.." FOREIGN KEY(ol_supply_w_id,ol_i_id) REFERENCES stock"..i.."(s_w_id,s_i_id)")
         con:query("ALTER TABLE stock"..i.." ADD CONSTRAINT fkey_stock_1_"..table_num.." FOREIGN KEY(s_w_id) REFERENCES warehouse"..i.."(w_id)")
         con:query("ALTER TABLE stock"..i.." ADD CONSTRAINT fkey_stock_2_"..table_num.." FOREIGN KEY(s_i_id) REFERENCES item"..i.."(i_id)")
+        con:query("ALTER TABLE item"..i.." ADD CONSTRAINT fkey_item_1_"..table_num.." FOREIGN KEY(i_w_id) REFERENCES warehouse"..i.."(w_id)")
     end
 end
 
@@ -537,6 +493,25 @@ function load_tables(warehouse_num)
 
    con:bulk_insert_done()
    print("customer %d for wid %d OK", table_num, warehouse_num)
+
+-- ITEM TABLE
+
+    con:bulk_insert_init("INSERT INTO item" .. table_num .." (i_id, i_w_id, i_im_id, i_name, i_price, i_data) values")
+    for j = 1 , MAXITEMS do
+       local i_w_id = warehouse_num
+       local i_im_id = sysbench.rand.uniform(1,10000)
+       local i_price = sysbench.rand.uniform_double()*100+1
+       -- i_name is not generated as prescribed by standard, but we want to provide a better compression
+       local i_name  = string.format("item-%d-%f-%s", i_im_id, i_price, sysbench.rand.string("@@@@@"))
+       local i_data  = string.format("data-%s-%s", i_name, sysbench.rand.string("@@@@@"))
+ 
+       query = string.format([[(%d,%d,%d,'%s',%f,'%s')]],
+     j, i_w_id, i_im_id, i_name:sub(1,24), i_price, i_data:sub(1,50))
+         con:bulk_insert_next(query)
+ 
+    end
+    con:bulk_insert_done()
+    print("item %d for wid %d OK", table_num, warehouse_num)
 
 -- HISTORY TABLE
 
@@ -664,9 +639,6 @@ function cleanup_target(j)
    local drv,con = db_connection_init()
 
    for i = 1, sysbench.opt.tables do
-         
-
-          con:query(string.format("DELETE FROM item%d", i))
           print(string.format("Dropping tables '%d'... for warehouse %d", i, j))
           con:query(string.format("DELETE FROM history%d WHERE h_c_w_id = %d", i, j))
           con:query(string.format("DELETE FROM new_orders%d WHERE no_w_id = %d", i, j))
@@ -675,6 +647,7 @@ function cleanup_target(j)
           con:query(string.format("DELETE FROM customer%d WHERE c_w_id = %d", i, j))
           con:query(string.format("DELETE FROM district%d WHERE d_w_id = %d", i, j))
           con:query(string.format("DELETE FROM stock%d WHERE s_w_id = %d", i, j))
+          con:query(string.format("DELETE FROM item%d WHERE i_w_id = %d", i, j))
           con:query(string.format("DELETE FROM warehouse%d WHERE w_id = %d", i, j))
    end
 end
