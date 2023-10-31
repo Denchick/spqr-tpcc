@@ -473,7 +473,7 @@ function load_tables(warehouse_num)
    for table_num = 1, sysbench.opt.tables do 
 	  --con:query("SET autocommit=1")
 
-   print(string.format("loading tables: %d for warehouse: %d\n", table_num, warehouse_num))
+   print(string.format("loading tables: '%d' for warehouse: '%d'\n", table_num, warehouse_num))
 
     con:bulk_insert_init("INSERT INTO warehouse" .. table_num .. 
 	" (w_id, w_name, w_street_1, w_street_2, w_city, w_state, w_zip, w_tax, w_ytd) values")
@@ -499,7 +499,7 @@ function load_tables(warehouse_num)
 
    end
    con:bulk_insert_done()
-
+   print("district %d for wid %d OK", table_num, warehouse_num)
 -- CUSTOMER TABLE
 
    con:bulk_insert_init("INSERT INTO customer" .. table_num .. [[
@@ -536,6 +536,7 @@ function load_tables(warehouse_num)
    end
 
    con:bulk_insert_done()
+   print("customer %d for wid %d OK", table_num, warehouse_num)
 
 -- HISTORY TABLE
 
@@ -555,6 +556,7 @@ function load_tables(warehouse_num)
    end
 
    con:bulk_insert_done()
+   print("history %d for wid %d OK", table_num, warehouse_num)
 
     local tab = {}
     local a_counts = {}
@@ -641,6 +643,7 @@ function load_tables(warehouse_num)
 
    con:bulk_insert_done()
 
+   print("stock %d for wid %d OK", table_num, warehouse_num)
   end
 
    if drv:name() == "mysql"
@@ -721,10 +724,11 @@ function NURand (A, x, y)
 	end
 
 	-- return ((( sysbench.rand.uniform(0, A) | sysbench.rand.uniform(x, y)) + C) % (y-x+1)) + x;
-	local i = sysbench.rand.uniform(0, A)
-	local j = sysbench.rand.uniform(x, y)
 
-	return ((( bit.bor(i, j) ) + C) % (y-x+1)) + x;
+       local i = sysbench.rand.uniform(0, A)
+       local j = sysbench.rand.uniform(x, y)
+
+       return ((( bit.bor(i, j) ) + C) % (y-x+1)) + x;
 end
 
 -- Implement parallel prepare and prewarm commands
